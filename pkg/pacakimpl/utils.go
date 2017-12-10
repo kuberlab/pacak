@@ -16,6 +16,11 @@ import (
 	"github.com/kuberlab/pacak/pkg/errors"
 )
 
+var pullTimeout time.Duration
+
+func init() {
+	pullTimeout = time.Minute
+}
 type GitInterface interface {
 	InitRepository(repo string) error
 	GetRepository(repo string) (PacakRepo,error)
@@ -96,26 +101,26 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 	return nil
 }
 
-func (p pacakRepo) Save(branch string,files []GitFile) (string,error){
+func (p pacakRepo) Save(oldBrach,newBranch string,files []GitFile) (string,error){
 	repoPath := p.r.Path
 	localPath := p.localPath
 
-	if branch!="master" {
+	if oldBrach!=newBranch {
 		// Directly return error if new branch already exists in the server
-		if git.IsBranchExist(repoPath, branch) {
-			return errors.BranchAlreadyExists{branch}
+		if git.IsBranchExist(repoPath, newBranch) {
+			return errors.BranchAlreadyExists{newBranch}
 		}
 
 		// Otherwise, delete branch from local copy in case out of sync
-		if git.IsBranchExist(localPath, branch) {
-			if err = git.DeleteBranch(localPath, branch, git.DeleteBranchOptions{
+		if git.IsBranchExist(localPath, newBranch) {
+			if err = git.DeleteBranch(localPath, newBranch, git.DeleteBranchOptions{
 				Force: true,
 			}); err != nil {
-				return fmt.Errorf("DeleteBranch [name: %s]: %v", branch, err)
+				return fmt.Errorf("DeleteBranch [name: %s]: %v", newBranch, err)
 			}
 		}
 
-		if err := repo.CheckoutNewBranch(opts.OldBranch, opts.NewBranch); err != nil {
+		if err := p.CheckoutNewBranch(oldBrach,newBranch); err != nil {
 			return fmt.Errorf("CheckoutNewBranch [old_branch: %s, new_branch: %s]: %v", opts.OldBranch, opts.NewBranch, err)
 		}
 	}
@@ -206,6 +211,19 @@ func (repo *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
 	refName := "origin/" + branch
 	if err := git.ResetHEAD(repo.localPath, true, refName); err != nil {
 		return fmt.Errorf("git reset --hard %s: %v", refName, err)
+	}
+	return nil
+}
+
+
+
+func (p *pacakRepo) CheckoutNewBranch(oldBranch, newBranch string) error {
+	if err := git.Checkout(p.localPath, git.CheckoutOptions{
+		Timeout:   pullTimeout,
+		Branch:    newBranch,
+		OldBranch: oldBranch,
+	}); err != nil {
+		return fmt.Errorf("git checkout -b %s %s: %v", newBranch, oldBranch, err)
 	}
 	return nil
 }
