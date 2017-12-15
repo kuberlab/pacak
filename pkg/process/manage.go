@@ -11,8 +11,7 @@ import (
 	"os/exec"
 	"sync"
 	"time"
-
-	log "gopkg.in/clog.v1"
+	"github.com/Sirupsen/logrus"
 )
 
 var (
@@ -101,7 +100,7 @@ func ExecDir(timeout time.Duration, dir, desc, cmdName string, args ...string) (
 	select {
 	case <-time.After(timeout):
 		if errKill := Kill(pid); errKill != nil {
-			log.Error(2, "Fail to kill timeout process [pid: %d, desc: %s]: %v", pid, desc, errKill)
+			logrus.Errorf("Fail to kill timeout process [pid: %d, desc: %s]: %v", pid, desc, errKill)
 		}
 		<-done
 		return "", ErrExecTimeout.Error(), ErrExecTimeout
