@@ -43,6 +43,8 @@ func init() {
 type GitInterface interface {
 	InitRepository(committer git.Signature, repo string, files []GitFile) error
 	GetRepository(repo string) (PacakRepo, error)
+	ExistsRepository(repo string) bool
+	DeleteRepository(repo string) error
 }
 
 type PacakRepo interface {
@@ -68,6 +70,20 @@ func NewGitInterface(gitRoot, localRoot string) GitInterface {
 }
 func (g gitInterface) path(repo ...string) string {
 	return path.Join(append([]string{g.gitRoot}, repo...)...)
+}
+func (g gitInterface) ExistsRepository(repo string) bool{
+	return util.IsExist(g.path(repo))
+}
+func (g gitInterface) DeleteRepository(repo string) error{
+	err := os.RemoveAll(path.Join(g.localRoot, repo))
+	if err!=nil{
+		return nil
+	}
+	err = os.RemoveAll(g.path(repo))
+	if err!=nil{
+		return nil
+	}
+	return nil
 }
 func (g gitInterface) GetRepository(repo string) (PacakRepo, error) {
 	r, err := git.OpenRepository(g.path(repo))
