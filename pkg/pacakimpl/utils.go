@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ type GitInterface interface {
 
 type PacakRepo interface {
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
+	Commits(branch string, filter func(string) bool) ([]Commit, error)
 }
 
 type pacakRepo struct {
@@ -248,4 +250,91 @@ func (p *pacakRepo) UpdateLocalCopyBranch(branch string) error {
 		}
 	}
 	return nil
+}
+
+type commitElement struct {
+	v    *git.Commit
+	next *commitElement
+}
+type commitList struct {
+	e *commitElement
+}
+
+func (l *commitList) Poll() *git.Commit {
+	if l.e == nil {
+		return nil
+	}
+	v := l.e.v
+	l.e = l.e.next
+	return v
+}
+func (l *commitList) Add(v *git.Commit) {
+	top := &commitElement{
+		v: v,
+	}
+	if l.e != nil {
+		top.next = l.e
+	}
+	l.e = top
+}
+
+func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, error) {
+	var branches []string
+	var err error
+	if branch != "" {
+		branches = []string{branch}
+	} else {
+		branches, err = p.r.GetBranches()
+		if err != nil {
+			return nil, fmt.Errorf("git list branch failed - %v", err)
+		}
+	}
+	added := map[string]bool{}
+	commits := []Commit{}
+	maybeAdd := func(c *git.Commit) bool {
+		if !filter(c.CommitMessage) {
+			return true
+		}
+		if _, ok := added[c.ID.String()]; ok {
+			return false
+		}
+		added[c.ID.String()] = true
+		parents := []string{}
+		for i := 0; i < c.ParentCount(); i++ {
+			p, _ := c.ParentID(i)
+			parents = append(parents, p.String())
+		}
+		commits = append(commits, Commit{
+			ID:          c.ID.String(),
+			AuthorName:  c.Committer.Name,
+			AuthorEmail: c.Committer.Email,
+			Message:     c.CommitMessage,
+			When:        c.Committer.When,
+			Parents:     parents,
+		})
+		return true
+	}
+	for _, branch := range branches {
+		c, err := p.r.GetBranchCommit(branch)
+		if err != nil {
+			return nil, fmt.Errorf("git get branch commit failed - %v", err)
+		}
+		list := &commitList{}
+		list.Add(c)
+		for c = list.Poll(); c != nil; c = list.Poll() {
+			if !maybeAdd(c) {
+				continue
+			}
+			for i := 0; i < c.ParentCount(); i++ {
+				p, err := c.Parent(i)
+				if err != nil {
+					return nil, fmt.Errorf("git get parent commit failed - %v", err)
+				}
+				list.Add(p)
+			}
+		}
+
+	}
+	sort.Sort(CommitSorter(commits))
+	return commits, nil
 }

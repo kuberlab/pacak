@@ -1,19 +1,19 @@
 package api
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/Sirupsen/logrus"
 	"github.com/emicklei/go-restful"
 	git "github.com/gogits/git-module"
 	"github.com/gorilla/mux"
 	"github.com/kuberlab/pacak/pkg/pacakimpl"
-	"net/http"
-	"time"
-	"github.com/Sirupsen/logrus"
 	"io/ioutil"
-	"os"
 	"net"
-	"bufio"
+	"net/http"
+	"os"
+	"time"
 )
 
 type pacakAPI struct {
@@ -35,6 +35,7 @@ func StartAPI(git pacakimpl.GitInterface) {
 	}
 	ws.Route(ws.POST("/git/init/{repo}").To(api.Init))
 	ws.Route(ws.POST("/git/commit/{repo}/{file}").To(api.Commit))
+	ws.Route(ws.GET("/git/commits/{repo}").To(api.Commits))
 	container.Add(ws)
 	r.PathPrefix("/api/v1/").Handler(container)
 	logrus.Infoln("Listen in *:8082")
@@ -45,37 +46,51 @@ func StartAPI(git pacakimpl.GitInterface) {
 }
 
 func (api pacakAPI) Init(req *restful.Request, resp *restful.Response) {
-	repo := "test/"+req.PathParameter("repo")
+	repo := "test/" + req.PathParameter("repo")
 
 	logrus.Infoln("Init: %v", repo)
-	if err:=api.git.InitRepository(Signature(req), repo, nil);err!=nil{
-		resp.WriteError(http.StatusInternalServerError,err)
-	} else{
+	if err := api.git.InitRepository(Signature(req), repo, nil); err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
+	} else {
 		resp.WriteHeader(http.StatusNoContent)
 	}
 }
 
+func (api pacakAPI) Commits(req *restful.Request, resp *restful.Response) {
+	repo := "test/" + req.PathParameter("repo")
+	gitRepo, err := api.git.GetRepository(repo)
+	if err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
+		return
+	}
+	commits, err := gitRepo.Commits("", func(_ string) bool { return true })
+	if err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
+		return
+	}
+	resp.WriteEntity(commits)
+}
 func (api pacakAPI) Commit(req *restful.Request, resp *restful.Response) {
-	repo := "test/"+req.PathParameter("repo")
+	repo := "test/" + req.PathParameter("repo")
 	file := req.PathParameter("file")
-	data,err := ioutil.ReadAll(req.Request.Body)
-	if err!=nil{
-		resp.WriteError(http.StatusInternalServerError,err)
+	data, err := ioutil.ReadAll(req.Request.Body)
+	if err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
 		return
 	}
-	gitRepo,err := api.git.GetRepository(repo)
-	if err!=nil{
-		resp.WriteError(http.StatusInternalServerError,err)
+	gitRepo, err := api.git.GetRepository(repo)
+	if err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
 		return
 	}
-	commit,err := gitRepo.Save(Signature(req),"test commit","master","second",[]pacakimpl.GitFile{
+	commit, err := gitRepo.Save(Signature(req), "new branch", "master", "test", []pacakimpl.GitFile{
 		{
 			Path: file,
 			Data: data,
 		},
 	})
-	if err!=nil{
-		resp.WriteError(http.StatusInternalServerError,err)
+	if err != nil {
+		resp.WriteError(http.StatusInternalServerError, err)
 		return
 	}
 	resp.WriteEntity(commit)
@@ -111,7 +126,6 @@ func Signature(req *restful.Request) git.Signature {
 		When:  time.Now(),
 	}
 }
-
 
 type LogRecordHandler struct {
 	http.ResponseWriter
