@@ -212,17 +212,17 @@ func (p pacakRepo) Save(committer git.Signature, message string, oldBrach, newBr
 	return commit.ID.String(), nil
 }
 
-func (repo *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
-	if !util.IsExist(repo.localPath) {
+func (p *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
+	if !util.IsExist(p.localPath) {
 		return nil
 	}
 	// No need to check if nothing in the repository.
-	if !git.IsBranchExist(repo.localPath, branch) {
+	if !git.IsBranchExist(p.localPath, branch) {
 		return nil
 	}
 
 	refName := "origin/" + branch
-	if err := git.ResetHEAD(repo.localPath, true, refName); err != nil {
+	if err := git.ResetHEAD(p.localPath, true, refName); err != nil {
 		return fmt.Errorf("git reset --hard %s: %v", refName, err)
 	}
 	return nil
