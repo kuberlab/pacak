@@ -53,8 +53,8 @@ type PacakRepo interface {
 }
 
 type pacakRepo struct {
-	r         *git.Repository
-	localPath string
+	R         *git.Repository
+	LocalPath string
 }
 
 type gitInterface struct {
@@ -91,8 +91,8 @@ func (g gitInterface) GetRepository(repo string) (PacakRepo, error) {
 		return nil, fmt.Errorf("OpenRepository: %v", err)
 	}
 	return &pacakRepo{
-		r:         r,
-		localPath: path.Join(g.localRoot, repo),
+		R:         r,
+		LocalPath: path.Join(g.localRoot, repo),
 	}, nil
 }
 func (g gitInterface) InitRepository(committer git.Signature, repo string, files []GitFile) error {
@@ -154,16 +154,16 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 }
 
 func (p pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
-	repoWorkingPool.CheckIn(p.r.Path)
-	defer repoWorkingPool.CheckOut(p.r.Path)
+	repoWorkingPool.CheckIn(p.R.Path)
+	defer repoWorkingPool.CheckOut(p.R.Path)
 
 	if err := p.DiscardLocalRepoBranchChanges(oldBrach); err != nil {
 		return "", fmt.Errorf("DiscardLocalRepoBranchChanges [branch: %s]: %v", oldBrach, err)
 	} else if err = p.UpdateLocalCopyBranch(oldBrach); err != nil {
 		return "", fmt.Errorf("UpdateLocalCopyBranch [branch: %s]: %v", oldBrach, err)
 	}
-	repoPath := p.r.Path
-	localPath := p.localPath
+	repoPath := p.R.Path
+	localPath := p.LocalPath
 	if oldBrach != newBranch {
 		// Directly return error if new branch already exists in the server
 		if git.IsBranchExist(repoPath, newBranch) {
@@ -205,7 +205,7 @@ func (p pacakRepo) Save(committer git.Signature, message string, oldBrach, newBr
 	} else if err = git.Push(localPath, "origin", newBranch); err != nil {
 		return "", fmt.Errorf("git push origin %s: %v", newBranch, err)
 	}
-	commit, err := p.r.GetBranchCommit(newBranch)
+	commit, err := p.R.GetBranchCommit(newBranch)
 	if err != nil {
 		return "", fmt.Errorf("Read last commit error %v", err)
 	}
@@ -213,23 +213,23 @@ func (p pacakRepo) Save(committer git.Signature, message string, oldBrach, newBr
 }
 
 func (p *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
-	if !util.IsExist(p.localPath) {
+	if !util.IsExist(p.LocalPath) {
 		return nil
 	}
 	// No need to check if nothing in the repository.
-	if !git.IsBranchExist(p.localPath, branch) {
+	if !git.IsBranchExist(p.LocalPath, branch) {
 		return nil
 	}
 
 	refName := "origin/" + branch
-	if err := git.ResetHEAD(p.localPath, true, refName); err != nil {
+	if err := git.ResetHEAD(p.LocalPath, true, refName); err != nil {
 		return fmt.Errorf("git reset --hard %s: %v", refName, err)
 	}
 	return nil
 }
 
 func (p *pacakRepo) CheckoutNewBranch(oldBranch, newBranch string) error {
-	if err := git.Checkout(p.localPath, git.CheckoutOptions{
+	if err := git.Checkout(p.LocalPath, git.CheckoutOptions{
 		Timeout:   pullTimeout,
 		Branch:    newBranch,
 		OldBranch: oldBranch,
@@ -241,27 +241,27 @@ func (p *pacakRepo) CheckoutNewBranch(oldBranch, newBranch string) error {
 
 // UpdateLocalCopyBranch makes sure local copy of repository in given branch is up-to-date.
 func (p *pacakRepo) UpdateLocalCopyBranch(branch string) error {
-	if !util.IsExist(p.localPath) {
-		if err := git.Clone(p.r.Path, p.localPath, git.CloneRepoOptions{
+	if !util.IsExist(p.LocalPath) {
+		if err := git.Clone(p.R.Path, p.LocalPath, git.CloneRepoOptions{
 			Timeout: cloneTimeout,
 			Branch:  branch,
 		}); err != nil {
 			return fmt.Errorf("git clone %s: %v", branch, err)
 		}
 	} else {
-		if err := git.Fetch(p.localPath, git.FetchRemoteOptions{
+		if err := git.Fetch(p.LocalPath, git.FetchRemoteOptions{
 			Prune: true,
 		}); err != nil {
 			return fmt.Errorf("git fetch: %v", err)
 		}
-		if err := git.Checkout(p.localPath, git.CheckoutOptions{
+		if err := git.Checkout(p.LocalPath, git.CheckoutOptions{
 			Branch: branch,
 		}); err != nil {
 			return fmt.Errorf("git checkout %s: %v", branch, err)
 		}
 
 		// Reset to align with remote in case of force push.
-		if err := git.ResetHEAD(p.localPath, true, "origin/"+branch); err != nil {
+		if err := git.ResetHEAD(p.LocalPath, true, "origin/"+branch); err != nil {
 			return fmt.Errorf("git reset --hard origin/%s: %v", branch, err)
 		}
 	}
@@ -300,7 +300,7 @@ func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, 
 	if branch != "" {
 		branches = []string{branch}
 	} else {
-		branches, err = p.r.GetBranches()
+		branches, err = p.R.GetBranches()
 		if err != nil {
 			return nil, fmt.Errorf("git list branch failed - %v", err)
 		}
@@ -331,7 +331,7 @@ func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, 
 		return true
 	}
 	for _, branch := range branches {
-		c, err := p.r.GetBranchCommit(branch)
+		c, err := p.R.GetBranchCommit(branch)
 		if err != nil {
 			return nil, fmt.Errorf("git get branch commit failed - %v", err)
 		}
