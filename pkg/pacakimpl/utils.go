@@ -50,6 +50,9 @@ type GitInterface interface {
 type PacakRepo interface {
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
+
+	Path() string
+	InnerRepo() *git.Repository
 }
 
 type pacakRepo struct {
@@ -153,7 +156,15 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 	return nil
 }
 
-func (p pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
+func (p *pacakRepo) Path() string {
+	return p.LocalPath
+}
+
+func (p *pacakRepo) InnerRepo() *git.Repository {
+	return p.R
+}
+
+func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
 	repoWorkingPool.CheckIn(p.R.Path)
 	defer repoWorkingPool.CheckOut(p.R.Path)
 
