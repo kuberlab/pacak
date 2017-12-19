@@ -51,8 +51,7 @@ type PacakRepo interface {
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
 
-	Path() string
-	InnerRepo() *git.Repository
+	Checkout(ref string) error
 }
 
 type pacakRepo struct {
@@ -74,16 +73,16 @@ func NewGitInterface(gitRoot, localRoot string) GitInterface {
 func (g gitInterface) path(repo ...string) string {
 	return path.Join(append([]string{g.gitRoot}, repo...)...)
 }
-func (g gitInterface) ExistsRepository(repo string) bool{
+func (g gitInterface) ExistsRepository(repo string) bool {
 	return util.IsExist(g.path(repo))
 }
-func (g gitInterface) DeleteRepository(repo string) error{
+func (g gitInterface) DeleteRepository(repo string) error {
 	err := os.RemoveAll(path.Join(g.localRoot, repo))
-	if err!=nil{
+	if err != nil {
 		return nil
 	}
 	err = os.RemoveAll(g.path(repo))
-	if err!=nil{
+	if err != nil {
 		return nil
 	}
 	return nil
@@ -156,12 +155,8 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 	return nil
 }
 
-func (p *pacakRepo) Path() string {
-	return p.LocalPath
-}
-
-func (p *pacakRepo) InnerRepo() *git.Repository {
-	return p.R
+func (p *pacakRepo) Checkout(ref string) error {
+	return git.Checkout(p.LocalPath, git.CheckoutOptions{Branch: ref})
 }
 
 func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
