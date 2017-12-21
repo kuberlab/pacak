@@ -166,20 +166,29 @@ func (p *pacakRepo) IsTagExists(tag string) bool {
 	return p.R.IsTagExist(tag)
 }
 
+func (p *pacakRepo) DeleteTag(tag string) error {
+	// delete tag locally
+	cmd := git.NewCommand("tag", "-d", tag)
+	_, err := cmd.RunInDir(p.LocalPath)
+	if err != nil {
+		return err
+	}
+
+	// delete tag on the remote side
+	return git.Push(p.LocalPath, "origin", fmt.Sprintf(":refs/tags/%v", tag))
+}
+
 func (p *pacakRepo) PushTag(tag string, fromRef string, override bool) error {
 	if override && p.R.IsTagExist(tag) {
-		// First, delete tag on the remote side
-		if err := git.Push(p.LocalPath, "origin", fmt.Sprintf(":refs/tags/%v", tag)); err != nil {
-			return err
-		}
-		// Then delete tag locally
-		if err := p.R.DeleteTag(tag); err != nil {
+		if err := p.DeleteTag(tag); err != nil {
 			return err
 		}
 	}
 
-	// Create a new tag.
-	if err := p.R.CreateTag(tag, fromRef); err != nil {
+	// Create a new tag locally (not via *git.Repository! since it uses bare git path).
+	cmd := git.NewCommand("tag", tag, fromRef)
+	_, err := cmd.RunInDir(p.LocalPath)
+	if err != nil {
 		return err
 	}
 
