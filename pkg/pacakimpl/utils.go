@@ -2,12 +2,6 @@ package pacakimpl
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
-	git "github.com/gogits/git-module"
-	"github.com/kuberlab/pacak/pkg/errors"
-	"github.com/kuberlab/pacak/pkg/process"
-	"github.com/kuberlab/pacak/pkg/sync"
-	"github.com/kuberlab/pacak/pkg/util"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -16,6 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Sirupsen/logrus"
+	git "github.com/gogits/git-module"
+	"github.com/kuberlab/pacak/pkg/errors"
+	"github.com/kuberlab/pacak/pkg/process"
+	"github.com/kuberlab/pacak/pkg/sync"
+	"github.com/kuberlab/pacak/pkg/util"
 )
 
 var pullTimeout time.Duration
@@ -52,6 +53,7 @@ type PacakRepo interface {
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
 
 	Checkout(ref string) error
+	PushTag(tag string, fromRef string, override bool) error
 }
 
 type pacakRepo struct {
@@ -157,6 +159,27 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 
 func (p *pacakRepo) Checkout(ref string) error {
 	return git.Checkout(p.LocalPath, git.CheckoutOptions{Branch: ref})
+}
+
+func (p *pacakRepo) PushTag(tag string, fromRef string, override bool) error {
+	if override && p.R.IsTagExist(tag) {
+		// First, delete tag on the remote side
+		if err := git.Push(p.LocalPath, "origin", fmt.Sprintf(":refs/tags/%v", tag)); err != nil {
+			return err
+		}
+		// Then delete tag locally
+		if err := p.R.DeleteTag(tag); err != nil {
+			return err
+		}
+	}
+
+	// Create a new tag.
+	if err := p.R.CreateTag(tag, fromRef); err != nil {
+		return err
+	}
+
+	// Push a new tag.
+	return git.Push(p.LocalPath, "origin", tag)
 }
 
 func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
