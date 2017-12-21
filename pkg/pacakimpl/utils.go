@@ -55,6 +55,7 @@ type PacakRepo interface {
 	Checkout(ref string) error
 	PushTag(tag string, fromRef string, override bool) error
 	IsTagExists(tag string) bool
+	TagList() ([]string, error)
 }
 
 type pacakRepo struct {
@@ -164,6 +165,10 @@ func (p *pacakRepo) Checkout(ref string) error {
 
 func (p *pacakRepo) IsTagExists(tag string) bool {
 	return p.R.IsTagExist(tag)
+}
+
+func (p *pacakRepo) TagList() ([]string, error) {
+	return p.R.GetTags()
 }
 
 func (p *pacakRepo) DeleteTag(tag string) error {
