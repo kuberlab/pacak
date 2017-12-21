@@ -54,6 +54,7 @@ type PacakRepo interface {
 
 	Checkout(ref string) error
 	PushTag(tag string, fromRef string, override bool) error
+	IsTagExists(tag string) bool
 }
 
 type pacakRepo struct {
@@ -159,6 +160,10 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 
 func (p *pacakRepo) Checkout(ref string) error {
 	return git.Checkout(p.LocalPath, git.CheckoutOptions{Branch: ref})
+}
+
+func (p *pacakRepo) IsTagExists(tag string) bool {
+	return p.R.IsTagExist(tag)
 }
 
 func (p *pacakRepo) PushTag(tag string, fromRef string, override bool) error {
