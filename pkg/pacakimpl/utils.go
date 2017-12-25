@@ -56,6 +56,7 @@ type PacakRepo interface {
 	PushTag(tag string, fromRef string, override bool) error
 	IsTagExists(tag string) bool
 	TagList() ([]string, error)
+	DeleteTag(tag string) error
 }
 
 type pacakRepo struct {
