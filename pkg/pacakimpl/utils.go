@@ -52,6 +52,7 @@ type GitInterface interface {
 
 type PacakRepo interface {
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
+	CheckoutAndSave(committer git.Signature, message string, revision, newBranch string, files []GitFile) (string, error)
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
 	Checkout(ref string) error
 	PushTag(tag string, fromRef string, override bool) error
@@ -182,6 +183,7 @@ func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
 	}
 	return b.Data()
 }
+
 /*func (p *pacakRepo) GetTreeAtRev(rev string) ([]GitFile, error) {
 	c, err := p.R.GetCommit(rev)
 	if err != nil {
@@ -268,6 +270,62 @@ func (p *pacakRepo) PushTag(tag string, fromRef string, override bool) error {
 	return git.Push(p.LocalPath, "origin", tag)
 }
 
+func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, revision, newBranch string, files []GitFile) (string, error) {
+	repoWorkingPool.CheckIn(p.R.Path)
+	defer repoWorkingPool.CheckOut(p.R.Path)
+	repoPath := p.R.Path
+	localPath := p.LocalPath
+	if err := git.ResetHEAD(p.LocalPath, true, revision); err != nil {
+		return fmt.Errorf("git reset --hard %s: %v", revision, err)
+	}
+	// Directly return error if new branch already exists in the server
+	if git.IsBranchExist(repoPath, newBranch) {
+		return "", errors.BranchAlreadyExists{newBranch}
+	}
+	// Otherwise, delete branch from local copy in case out of sync
+	if git.IsBranchExist(localPath, newBranch) {
+		if err := git.DeleteBranch(localPath, newBranch, git.DeleteBranchOptions{
+			Force: true,
+		}); err != nil {
+			return "", fmt.Errorf("DeleteBranch [name: %s]: %v", newBranch, err)
+		}
+	}
+
+	if err := p.CheckoutNewBranch("", newBranch); err != nil {
+		return "", fmt.Errorf("CheckoutNewBranch [new_branch: %s]: %v", newBranch, err)
+	}
+
+	return save(p.R, localPath, committer, message, newBranch, files)
+}
+func save(repo *git.Repository, localPath string, committer git.Signature, message string, newBranch string, files []GitFile) (string, error) {
+	for _, f := range files {
+		dir := path.Dir(f.Path)
+		if dir != "" {
+			dir = path.Join(localPath, dir)
+			os.MkdirAll(dir, os.ModePerm)
+		}
+		filePath := path.Join(localPath, f.Path)
+		if err := ioutil.WriteFile(filePath, f.Data, 0666); err != nil {
+			return "", fmt.Errorf("WriteFile: failed write file - %v", err)
+		}
+	}
+
+	if err := git.AddChanges(localPath, true); err != nil {
+		return "", fmt.Errorf("git add --all: %v", err)
+	} else if err = git.CommitChanges(localPath, git.CommitChangesOptions{
+		Committer: &committer,
+		Message:   message,
+	}); err != nil {
+		return "", fmt.Errorf("CommitChanges: %v", err)
+	} else if err = git.Push(localPath, "origin", newBranch); err != nil {
+		return "", fmt.Errorf("git push origin %s: %v", newBranch, err)
+	}
+	commit, err := repo.GetBranchCommit(newBranch)
+	if err != nil {
+		return "", fmt.Errorf("Read last commit error %v", err)
+	}
+	return commit.ID.String(), nil
+}
 func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
 	repoWorkingPool.CheckIn(p.R.Path)
 	defer repoWorkingPool.CheckOut(p.R.Path)
@@ -298,33 +356,7 @@ func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newB
 			return "", fmt.Errorf("CheckoutNewBranch [old_branch: %s, new_branch: %s]: %v", oldBrach, newBranch, err)
 		}
 	}
-	for _, f := range files {
-		dir := path.Dir(f.Path)
-		if dir != "" {
-			dir = path.Join(localPath, dir)
-			os.MkdirAll(dir, os.ModePerm)
-		}
-		filePath := path.Join(localPath, f.Path)
-		if err := ioutil.WriteFile(filePath, f.Data, 0666); err != nil {
-			return "", fmt.Errorf("WriteFile: failed write file - %v", err)
-		}
-	}
-
-	if err := git.AddChanges(localPath, true); err != nil {
-		return "", fmt.Errorf("git add --all: %v", err)
-	} else if err = git.CommitChanges(localPath, git.CommitChangesOptions{
-		Committer: &committer,
-		Message:   message,
-	}); err != nil {
-		return "", fmt.Errorf("CommitChanges: %v", err)
-	} else if err = git.Push(localPath, "origin", newBranch); err != nil {
-		return "", fmt.Errorf("git push origin %s: %v", newBranch, err)
-	}
-	commit, err := p.R.GetBranchCommit(newBranch)
-	if err != nil {
-		return "", fmt.Errorf("Read last commit error %v", err)
-	}
-	return commit.ID.String(), nil
+	return save(p.R, localPath, committer, message, newBranch, files)
 }
 
 func (p *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
