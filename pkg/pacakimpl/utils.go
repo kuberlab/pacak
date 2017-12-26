@@ -17,6 +17,8 @@ import (
 	"github.com/kuberlab/pacak/pkg/process"
 	"github.com/kuberlab/pacak/pkg/sync"
 	"github.com/kuberlab/pacak/pkg/util"
+	"io"
+	"path/filepath"
 )
 
 var pullTimeout time.Duration
@@ -51,12 +53,14 @@ type GitInterface interface {
 type PacakRepo interface {
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
-
 	Checkout(ref string) error
 	PushTag(tag string, fromRef string, override bool) error
 	IsTagExists(tag string) bool
 	TagList() ([]string, error)
 	DeleteTag(tag string) error
+	GetFileAtRev(rev, path string) (io.Reader, error)
+	GetRev(rev string) (*git.Commit, error)
+	GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
 type pacakRepo struct {
@@ -158,6 +162,67 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 		return fmt.Errorf("git push: %s", stderr)
 	}
 	return nil
+}
+
+func (p *pacakRepo) GetRev(rev string) (*git.Commit, error) {
+	c, err := p.R.GetCommit(rev)
+	if err != nil {
+		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+	}
+	return c, err
+}
+func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
+	c, err := p.R.GetCommit(rev)
+	if err != nil {
+		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+	}
+	b, err := c.GetBlobByPath(path)
+	if err != nil {
+		return nil, fmt.Errorf("Failed read file '%s' - %v", rev, err)
+	}
+	return b.Data()
+}
+func (p *pacakRepo) GetTreeAtRev(rev string) ([]GitFile, error) {
+	c, err := p.R.GetCommit(rev)
+	if err != nil {
+		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+	}
+	files := []GitFile{}
+	files, err = readFullTree(c, "", files)
+	if err != nil {
+		return nil, fmt.Errorf("Failed read tree '%s' - %v", rev, err)
+	}
+	return files, nil
+}
+
+func readFullTree(c *git.Commit, path string, files []GitFile) ([]GitFile, error) {
+	var entries git.Entries
+	var err error
+	if path == "" {
+		entries, err = c.Tree.ListEntries()
+	} else {
+		if !strings.HasSuffix(path, "/") {
+			path = path + "/"
+		}
+		entries, err = c.Tree.GetTreeEntryByPath(path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		fp := filepath.Join(path, e.Name())
+		if e.IsDir() {
+			files, err = readFullTree(c, fp, files)
+			if err != nil {
+				return nil
+			}
+		} else if e.Type == git.OBJECT_BLOB && !e.IsLink() && !e.IsSubModule() {
+			files = append(files, GitFile{
+				Path: fp,
+			})
+		}
+	}
+	return files, nil
 }
 
 func (p *pacakRepo) Checkout(ref string) error {
