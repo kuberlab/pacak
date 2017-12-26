@@ -18,7 +18,7 @@ import (
 	"github.com/kuberlab/pacak/pkg/sync"
 	"github.com/kuberlab/pacak/pkg/util"
 	"io"
-	"path/filepath"
+	//"path/filepath"
 )
 
 var pullTimeout time.Duration
@@ -60,7 +60,7 @@ type PacakRepo interface {
 	DeleteTag(tag string) error
 	GetFileAtRev(rev, path string) (io.Reader, error)
 	GetRev(rev string) (*git.Commit, error)
-	GetTreeAtRev(rev string) ([]GitFile, error)
+	//GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
 type pacakRepo struct {
@@ -182,7 +182,7 @@ func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
 	}
 	return b.Data()
 }
-func (p *pacakRepo) GetTreeAtRev(rev string) ([]GitFile, error) {
+/*func (p *pacakRepo) GetTreeAtRev(rev string) ([]GitFile, error) {
 	c, err := p.R.GetCommit(rev)
 	if err != nil {
 		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
@@ -204,7 +204,8 @@ func readFullTree(c *git.Commit, path string, files []GitFile) ([]GitFile, error
 		if !strings.HasSuffix(path, "/") {
 			path = path + "/"
 		}
-		entries, err = c.Tree.GetTreeEntryByPath(path)
+		tree, err := c.Tree.GetTreeEntryByPath(path)
+
 	}
 	if err != nil {
 		return nil, err
@@ -223,7 +224,7 @@ func readFullTree(c *git.Commit, path string, files []GitFile) ([]GitFile, error
 		}
 	}
 	return files, nil
-}
+}*/
 
 func (p *pacakRepo) Checkout(ref string) error {
 	return git.Checkout(p.LocalPath, git.CheckoutOptions{Branch: ref})
