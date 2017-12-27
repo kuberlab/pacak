@@ -237,6 +237,17 @@ func (p *pacakRepo) ListFilesAtRev(rev string) ([]os.FileInfo, error) {
 
 func (p *pacakRepo) StatFileAtRev(rev string, path string) (os.FileInfo, error) {
 	// git ls-tree -l <ref> <path>
+	if path == "/" {
+		return &GitFileInfo{
+			name:    "/",
+			modTime: time.Now(),
+			mode:    os.ModePerm,
+			dir:     true,
+			size:    4096,
+		}, nil
+	}
+	path = strings.TrimPrefix(path, "/")
+
 	output, err := git.NewCommand("ls-tree", "-l", rev, path).RunInDir(p.LocalPath)
 	if err != nil {
 		return nil, err
