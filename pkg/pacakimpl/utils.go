@@ -61,6 +61,7 @@ type PacakRepo interface {
 	DeleteTag(tag string) error
 	GetFileAtRev(rev, path string) (io.Reader, error)
 	GetRev(rev string) (*git.Commit, error)
+	ListFilesAtRev(rev string) ([]string, error)
 	//GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
@@ -184,19 +185,34 @@ func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
 	return b.Data()
 }
 
-/*func (p *pacakRepo) GetTreeAtRev(rev string) ([]GitFile, error) {
-	c, err := p.R.GetCommit(rev)
+func (p *pacakRepo) ListFilesAtRev(rev string) ([]string, error) {
+	output, err := git.NewCommand("ls-tree", "-r", rev, "--name-only").RunInDir(p.LocalPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+		return nil, err
 	}
-	files := []GitFile{}
-	files, err = readFullTree(c, "", files)
-	if err != nil {
-		return nil, fmt.Errorf("Failed read tree '%s' - %v", rev, err)
+
+	lines := strings.Split(output, "\n")
+
+	res := make([]string, 0)
+	for _, line := range lines {
+		if line != "" {
+			res = append(res, line)
+		}
 	}
-	return files, nil
+	return res, nil
+	//c, err := p.R.GetTree(rev)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+	//}
+	//files := []GitFile{}
+	//files, err = readFullTree(c, "", files)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Failed read tree '%s' - %v", rev, err)
+	//}
+	//return files, nil
 }
 
+/*
 func readFullTree(c *git.Commit, path string, files []GitFile) ([]GitFile, error) {
 	var entries git.Entries
 	var err error
@@ -276,7 +292,7 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 	repoPath := p.R.Path
 	localPath := p.LocalPath
 	if err := git.ResetHEAD(p.LocalPath, true, revision); err != nil {
-		return fmt.Errorf("git reset --hard %s: %v", revision, err)
+		return "", fmt.Errorf("git reset --hard %s: %v", revision, err)
 	}
 	// Directly return error if new branch already exists in the server
 	if git.IsBranchExist(repoPath, newBranch) {
