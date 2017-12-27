@@ -62,7 +62,7 @@ type PacakRepo interface {
 	GetFileAtRev(rev, path string) (io.Reader, error)
 	GetFileDataAtRev(rev, path string) ([]byte, error)
 	GetRev(rev string) (*git.Commit, error)
-	ListFilesAtRev(rev string) ([]string, error)
+	ListFilesAtRev(rev string) ([]os.FileInfo, error)
 	//GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
@@ -198,19 +198,48 @@ func (p *pacakRepo) GetFileDataAtRev(rev, path string) ([]byte, error) {
 	return []byte(output), nil
 }
 
-func (p *pacakRepo) ListFilesAtRev(rev string) ([]string, error) {
-	output, err := git.NewCommand("ls-tree", "-r", rev, "--name-only").RunInDir(p.LocalPath)
+func (p *pacakRepo) ListFilesAtRev(rev string) ([]os.FileInfo, error) {
+	output, err := git.NewCommand("ls-tree", "-r", "-t", "-l", rev).RunInDir(p.LocalPath)
 	if err != nil {
 		return nil, err
 	}
 
 	lines := strings.Split(output, "\n")
 
-	res := make([]string, 0)
+	res := make([]os.FileInfo, 0)
+	// TODO: clarify modtime
+	// Use git log -1 --format="%ad" -- path/to/file
+	modtime := time.Now()
+
 	for _, line := range lines {
-		if line != "" {
-			res = append(res, line)
+		if line == "" {
+			continue
 		}
+		fields := strings.Fields(line)
+		fType := fields[1]
+		var mode os.FileMode
+		var size int64
+		if fType == "tree" {
+			mode = os.ModePerm
+			size = 4096
+		} else {
+			mode = 0644
+			size, err = strconv.ParseInt(fields[3], 10, 64)
+			if err != nil {
+				return nil, err
+			}
+		}
+		name := fields[4]
+		res = append(
+			res,
+			&GitFileInfo{
+				size:    size,
+				dir:     mode == os.ModePerm,
+				mode:    mode,
+				name:    name,
+				modTime: modtime,
+			},
+		)
 	}
 	return res, nil
 	//c, err := p.R.GetTree(rev)
