@@ -60,6 +60,7 @@ type PacakRepo interface {
 	TagList() ([]string, error)
 	DeleteTag(tag string) error
 	GetFileAtRev(rev, path string) (io.Reader, error)
+	GetFileDataAtRev(rev, path string) ([]byte, error)
 	GetRev(rev string) (*git.Commit, error)
 	ListFilesAtRev(rev string) ([]string, error)
 	//GetTreeAtRev(rev string) ([]GitFile, error)
@@ -183,6 +184,18 @@ func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
 		return nil, fmt.Errorf("Failed read file '%s' - %v", rev, err)
 	}
 	return b.Data()
+}
+
+func (p *pacakRepo) GetFileDataAtRev(rev, path string) ([]byte, error) {
+	// path must be without root slash.
+	path = strings.TrimPrefix(path, "/")
+
+	output, err := git.NewCommand("show", fmt.Sprintf("%v:%v", rev, path)).RunInDir(p.LocalPath)
+	if err != nil {
+		return nil, err
+	}
+	// output - file data for current ref
+	return []byte(output), nil
 }
 
 func (p *pacakRepo) ListFilesAtRev(rev string) ([]string, error) {
