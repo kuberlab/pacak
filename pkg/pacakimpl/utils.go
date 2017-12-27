@@ -247,6 +247,7 @@ func (p *pacakRepo) StatFileAtRev(rev string, path string) (os.FileInfo, error) 
 		}, nil
 	}
 	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimSuffix(path, "/")
 
 	output, err := git.NewCommand("ls-tree", "-l", rev, path).RunInDir(p.LocalPath)
 	if err != nil {
@@ -283,7 +284,7 @@ func (p *pacakRepo) parseFileInfo(line string, modtime time.Time) (os.FileInfo, 
 			return nil, err
 		}
 	}
-	name := fields[4]
+	name := "/" + fields[4]
 	return &GitFileInfo{
 		size:    size,
 		dir:     mode == os.ModePerm,
