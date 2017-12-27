@@ -2,6 +2,7 @@ package pacakimpl
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -17,7 +18,6 @@ import (
 	"github.com/kuberlab/pacak/pkg/process"
 	"github.com/kuberlab/pacak/pkg/sync"
 	"github.com/kuberlab/pacak/pkg/util"
-	"io"
 	//"path/filepath"
 )
 
@@ -63,6 +63,7 @@ type PacakRepo interface {
 	GetFileDataAtRev(rev, path string) ([]byte, error)
 	GetRev(rev string) (*git.Commit, error)
 	ListFilesAtRev(rev string) ([]os.FileInfo, error)
+	StatFileAtRev(rev string, path string) (os.FileInfo, error)
 	//GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
@@ -215,31 +216,11 @@ func (p *pacakRepo) ListFilesAtRev(rev string) ([]os.FileInfo, error) {
 		if line == "" {
 			continue
 		}
-		fields := strings.Fields(line)
-		fType := fields[1]
-		var mode os.FileMode
-		var size int64
-		if fType == "tree" {
-			mode = os.ModePerm
-			size = 4096
-		} else {
-			mode = 0644
-			size, err = strconv.ParseInt(fields[3], 10, 64)
-			if err != nil {
-				return nil, err
-			}
+		fi, err := p.parseFileInfo(line, modtime)
+		if err != nil {
+			return nil, err
 		}
-		name := fields[4]
-		res = append(
-			res,
-			&GitFileInfo{
-				size:    size,
-				dir:     mode == os.ModePerm,
-				mode:    mode,
-				name:    name,
-				modTime: modtime,
-			},
-		)
+		res = append(res, fi)
 	}
 	return res, nil
 	//c, err := p.R.GetTree(rev)
@@ -252,6 +233,53 @@ func (p *pacakRepo) ListFilesAtRev(rev string) ([]os.FileInfo, error) {
 	//	return nil, fmt.Errorf("Failed read tree '%s' - %v", rev, err)
 	//}
 	//return files, nil
+}
+
+func (p *pacakRepo) StatFileAtRev(rev string, path string) (os.FileInfo, error) {
+	// git ls-tree -l <ref> <path>
+	output, err := git.NewCommand("ls-tree", "-l", rev, path).RunInDir(p.LocalPath)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(output, "\n")
+
+	if len(lines) < 1 {
+		return nil, fmt.Errorf("No files for revison %v and path %v.", rev, path)
+	}
+	// TODO: clarify modtime
+	// Use git log -1 --format="%ad" -- path/to/file
+	modtime := time.Now()
+
+	// Analyze exactly one line
+	line := lines[0]
+	return p.parseFileInfo(line, modtime)
+}
+
+func (p *pacakRepo) parseFileInfo(line string, modtime time.Time) (os.FileInfo, error) {
+	fields := strings.Fields(line)
+	fType := fields[1]
+	var mode os.FileMode
+	var size int64
+	var err error
+	if fType == "tree" {
+		mode = os.ModePerm
+		size = 4096
+	} else {
+		mode = 0644
+		size, err = strconv.ParseInt(fields[3], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
+	name := fields[4]
+	return &GitFileInfo{
+		size:    size,
+		dir:     mode == os.ModePerm,
+		mode:    mode,
+		name:    name,
+		modTime: modtime,
+	}, nil
 }
 
 /*
