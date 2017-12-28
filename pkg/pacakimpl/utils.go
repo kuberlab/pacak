@@ -168,12 +168,16 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 	return nil
 }
 
-func (p *pacakRepo) GetRev(rev string) (*git.Commit, error) {
-	c, err := p.R.GetCommit(rev)
-	if err != nil {
-		return nil, fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+func (p *pacakRepo) GetRev(rev string) (c *git.Commit, err error) {
+	if rev==""{
+		c,err = p.R.GetBranchCommit("master")
+	} else {
+		c, err = p.R.GetCommit(rev)
 	}
-	return c, err
+	if err != nil {
+		err = fmt.Errorf("Failed read commit '%s' - %v", rev, err)
+	}
+	return
 }
 func (p *pacakRepo) GetFileAtRev(rev, path string) (io.Reader, error) {
 	c, err := p.R.GetCommit(rev)
