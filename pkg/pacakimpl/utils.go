@@ -374,9 +374,12 @@ func (p *pacakRepo) PushTag(tag string, fromRef string, override bool) error {
 
 func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, revision, newBranch string, files []GitFile) (string, error) {
 	repoWorkingPool.CheckIn(p.R.Path)
-	defer repoWorkingPool.CheckOut(p.R.Path)
 	repoPath := p.R.Path
 	localPath := p.LocalPath
+	defer func(){
+		os.Remove(path.Join(localPath,".git","index.lock"))
+		repoWorkingPool.CheckOut(p.R.Path)
+	}()
 	if err := git.ResetHEAD(p.LocalPath, true, revision); err != nil {
 		return "", fmt.Errorf("git reset --hard %s: %v", revision, err)
 	}
@@ -430,15 +433,17 @@ func save(repo *git.Repository, localPath string, committer git.Signature, messa
 }
 func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error) {
 	repoWorkingPool.CheckIn(p.R.Path)
-	defer repoWorkingPool.CheckOut(p.R.Path)
-
+	repoPath := p.R.Path
+	localPath := p.LocalPath
+	defer func(){
+		os.Remove(path.Join(localPath,".git","index.lock"))
+		repoWorkingPool.CheckOut(p.R.Path)
+	}()
 	if err := p.DiscardLocalRepoBranchChanges(oldBrach); err != nil {
 		return "", fmt.Errorf("DiscardLocalRepoBranchChanges [branch: %s]: %v", oldBrach, err)
 	} else if err = p.UpdateLocalCopyBranch(oldBrach); err != nil {
 		return "", fmt.Errorf("UpdateLocalCopyBranch [branch: %s]: %v", oldBrach, err)
 	}
-	repoPath := p.R.Path
-	localPath := p.LocalPath
 	if oldBrach != newBranch {
 		// Directly return error if new branch already exists in the server
 		if git.IsBranchExist(repoPath, newBranch) {
