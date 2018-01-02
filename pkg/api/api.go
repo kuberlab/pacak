@@ -84,17 +84,31 @@ func (api pacakAPI) Commit(req *restful.Request, resp *restful.Response) {
 		resp.WriteError(http.StatusInternalServerError, err)
 		return
 	}
-	commit, err := gitRepo.Save(Signature(req), "new branch", "master", "test", []pacakimpl.GitFile{
-		{
-			Path: file,
-			Data: data,
-		},
-	})
-	if err != nil {
-		resp.WriteError(http.StatusInternalServerError, err)
-		return
+	for i := 0 ; i < 5 ; i++ {
+		go func() {
+			commit, err := gitRepo.Save(Signature(req), "new branch1", "master", "master", []pacakimpl.GitFile{
+				{
+					Path: file,
+					Data: data,
+				},
+			})
+			if err != nil {
+				panic(err)
+
+			} else {
+				fmt.Println("Commit: ",commit)
+			}
+		}()
+		go func() {
+			_, err := gitRepo.Commits("", func(_ string) bool {
+				return true
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
-	resp.WriteEntity(commit)
+	resp.WriteEntity("ok")
 
 }
 

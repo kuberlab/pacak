@@ -18,7 +18,6 @@ import (
 	"github.com/kuberlab/pacak/pkg/process"
 	"github.com/kuberlab/pacak/pkg/sync"
 	"github.com/kuberlab/pacak/pkg/util"
-	//"path/filepath"
 )
 
 var pullTimeout time.Duration
@@ -169,8 +168,8 @@ func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 }
 
 func (p *pacakRepo) GetRev(rev string) (c *git.Commit, err error) {
-	if rev==""{
-		c,err = p.R.GetBranchCommit("master")
+	if rev == "" {
+		c, err = p.R.GetBranchCommit("master")
 	} else {
 		c, err = p.R.GetCommit(rev)
 	}
@@ -376,8 +375,12 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 	repoWorkingPool.CheckIn(p.R.Path)
 	repoPath := p.R.Path
 	localPath := p.LocalPath
-	defer func(){
-		os.Remove(path.Join(localPath,".git","index.lock"))
+	defer func() {
+		if lockFile := path.Join(localPath, ".git", "index.lock"); util.IsExist(lockFile) {
+			logrus.Errorln("index lock exists. remove it.")
+			os.Remove(lockFile)
+
+		}
 		repoWorkingPool.CheckOut(p.R.Path)
 	}()
 	if err := git.ResetHEAD(p.LocalPath, true, revision); err != nil {
@@ -435,8 +438,12 @@ func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newB
 	repoWorkingPool.CheckIn(p.R.Path)
 	repoPath := p.R.Path
 	localPath := p.LocalPath
-	defer func(){
-		os.Remove(path.Join(localPath,".git","index.lock"))
+	defer func() {
+		if lockFile := path.Join(localPath, ".git", "index.lock"); util.IsExist(lockFile) {
+			logrus.Errorln("index lock exists. remove it.")
+			os.Remove(lockFile)
+
+		}
 		repoWorkingPool.CheckOut(p.R.Path)
 	}()
 	if err := p.DiscardLocalRepoBranchChanges(oldBrach); err != nil {
@@ -578,7 +585,7 @@ func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, 
 			ID:          c.ID.String(),
 			AuthorName:  c.Committer.Name,
 			AuthorEmail: c.Committer.Email,
-			Message:     c.CommitMessage,
+			Message:     strings.TrimSuffix(c.CommitMessage, "\n"),
 			When:        c.Committer.When,
 			Parents:     parents,
 		})
@@ -589,18 +596,31 @@ func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, 
 		if err != nil {
 			return nil, fmt.Errorf("git get branch commit failed - %v", err)
 		}
-		list := &commitList{}
-		list.Add(c)
-		for c = list.Poll(); c != nil; c = list.Poll() {
-			if !maybeAdd(c) {
-				continue
+		prev := c.ID.String()
+		if !maybeAdd(c) {
+			continue
+		}
+		listing := true
+		for listing {
+			lc, err := c.CommitsByRangeSize(1, 30)
+			if err != nil {
+				return nil, fmt.Errorf("git list commits failed - %v", err)
 			}
-			for i := 0; i < c.ParentCount(); i++ {
-				p, err := c.Parent(i)
-				if err != nil {
-					return nil, fmt.Errorf("git get parent commit failed - %v", err)
+			e := lc.Front()
+			for ; e != nil; e = e.Next() {
+				c = e.Value.(*git.Commit)
+				if v := c.ID.String(); v == prev {
+					continue
+				} else {
+					prev = v
 				}
-				list.Add(p)
+				if !maybeAdd(c) {
+					listing = false
+					break
+				}
+			}
+			if c.ParentCount() < 1 {
+				listing = false
 			}
 		}
 
