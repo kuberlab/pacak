@@ -287,7 +287,7 @@ func (p *pacakRepo) parseFileInfo(line string, modtime time.Time) (os.FileInfo, 
 			return nil, err
 		}
 	}
-	name := "/" + fields[4]
+	name := "/" + strings.Join(fields[4:], " ")
 	return &GitFileInfo{
 		size:    size,
 		dir:     mode == os.ModePerm,
