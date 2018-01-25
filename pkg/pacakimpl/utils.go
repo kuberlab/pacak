@@ -50,6 +50,7 @@ type GitInterface interface {
 }
 
 type PacakRepo interface {
+	CleanPush(committer git.Signature, message string, branch string) (string, error)
 	Save(committer git.Signature, message string, oldBrach, newBranch string, files []GitFile) (string, error)
 	CheckoutAndSave(committer git.Signature, message string, revision, newBranch string, files []GitFile) (string, error)
 	Commits(branch string, filter func(string) bool) ([]Commit, error)
@@ -471,6 +472,31 @@ func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newB
 		}
 	}
 	return save(p.R, localPath, committer, message, newBranch, files)
+}
+
+func (p *pacakRepo) CleanPush(committer git.Signature, message string, branch string) (string, error) {
+	repoWorkingPool.CheckIn(p.R.Path)
+	localPath := p.LocalPath
+	defer func() {
+		if lockFile := path.Join(localPath, ".git", "index.lock"); util.IsExist(lockFile) {
+			logrus.Errorln("index lock exists. remove it.")
+			os.Remove(lockFile)
+
+		}
+		repoWorkingPool.CheckOut(p.R.Path)
+	}()
+	if err := p.DiscardLocalRepoBranchChanges(branch); err != nil {
+		return "", fmt.Errorf("DiscardLocalRepoBranchChanges [branch: %s]: %v", branch, err)
+	} else if err = p.UpdateLocalCopyBranch(branch); err != nil {
+		return "", fmt.Errorf("UpdateLocalCopyBranch [branch: %s]: %v", branch, err)
+	}
+
+	_, err := exec.Command("sh", "-c", fmt.Sprintf("rm -rf %v", path.Join(localPath, "*"))).Output()
+	if err != nil {
+		return "", err
+	}
+
+	return save(p.R, localPath, committer, message, branch, []GitFile{})
 }
 
 func (p *pacakRepo) DiscardLocalRepoBranchChanges(branch string) error {
