@@ -384,8 +384,8 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 		}
 		repoWorkingPool.CheckOut(p.R.Path)
 	}()
-	if err := git.ResetHEAD(p.LocalPath, true, revision); err != nil {
-		return "", fmt.Errorf("git reset --hard %s: %v", revision, err)
+	if err := git.ResetHEAD(p.LocalPath, true, "master"); err != nil {
+		return "", fmt.Errorf("git reset --hard master: %v", err)
 	}
 	// Directly return error if new branch already exists in the server
 	if git.IsBranchExist(repoPath, newBranch) {
@@ -400,7 +400,7 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 		}
 	}
 
-	if err := p.CheckoutNewBranch("", newBranch); err != nil {
+	if err := p.CheckoutNewBranch(revision, newBranch); err != nil {
 		return "", fmt.Errorf("CheckoutNewBranch [new_branch: %s]: %v", newBranch, err)
 	}
 
