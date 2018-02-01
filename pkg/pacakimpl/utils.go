@@ -399,7 +399,9 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 			return "", fmt.Errorf("DeleteBranch [name: %s]: %v", newBranch, err)
 		}
 	}
-
+	if revision == ""{
+		revision = "master"
+	}
 	if err := p.CheckoutNewBranch(revision, newBranch); err != nil {
 		return "", fmt.Errorf("CheckoutNewBranch [new_branch: %s]: %v", newBranch, err)
 	}
