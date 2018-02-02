@@ -64,6 +64,7 @@ type PacakRepo interface {
 	GetRev(rev string) (*git.Commit, error)
 	ListFilesAtRev(rev string) ([]os.FileInfo, error)
 	StatFileAtRev(rev string, path string) (os.FileInfo, error)
+	GetBranches() ([]string, error)
 	//GetTreeAtRev(rev string) ([]GitFile, error)
 }
 
@@ -399,7 +400,7 @@ func (p *pacakRepo) CheckoutAndSave(committer git.Signature, message string, rev
 			return "", fmt.Errorf("DeleteBranch [name: %s]: %v", newBranch, err)
 		}
 	}
-	if revision == ""{
+	if revision == "" {
 		revision = "master"
 	}
 	if err := p.CheckoutNewBranch(revision, newBranch); err != nil {
@@ -581,6 +582,10 @@ func (l *commitList) Add(v *git.Commit) {
 		top.next = l.e
 	}
 	l.e = top
+}
+
+func (p *pacakRepo) GetBranches() ([]string, error) {
+	return p.R.GetBranches()
 }
 
 func (p *pacakRepo) Commits(branch string, filter func(string) bool) ([]Commit, error) {
