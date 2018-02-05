@@ -494,9 +494,10 @@ func (p *pacakRepo) CleanPush(committer git.Signature, message string, branch st
 		return "", fmt.Errorf("UpdateLocalCopyBranch [branch: %s]: %v", branch, err)
 	}
 
-	_, err := exec.Command("sh", "-c", fmt.Sprintf("rm -rf %v", path.Join(localPath, "*"))).Output()
+	cmd := fmt.Sprintf(`cd %v; find . \( ! -path '*/.*' \) -name "*" -delete`, localPath)
+	_, err := exec.Command("sh", "-c", cmd).Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%v: %v", cmd, err)
 	}
 
 	return save(p.R, localPath, committer, message, branch, []GitFile{})
