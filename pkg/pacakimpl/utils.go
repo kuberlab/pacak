@@ -148,22 +148,44 @@ func (g gitInterface) InitRepository(committer git.Signature, repo string, files
 
 func initRepoCommit(tmpPath string, sig *git.Signature) (err error) {
 	var stderr string
-	if _, stderr, err = process.ExecDir(-1,
-		tmpPath, fmt.Sprintf("initRepoCommit (git add): %s", tmpPath),
-		"git", "add", "--all"); err != nil {
+	if _, stderr, err = process.ExecDir(
+		-1,
+		tmpPath,
+		fmt.Sprintf("initRepoCommit (git add): %s", tmpPath),
+		"git",
+		"add", "--all",
+	); err != nil {
 		return fmt.Errorf("git add: %s", stderr)
 	}
 
-	if _, stderr, err = process.ExecDir(-1,
-		tmpPath, fmt.Sprintf("initRepoCommit (git commit): %s", tmpPath),
-		"git", "commit", fmt.Sprintf("--author='%s <%s>'", sig.Name, sig.Email),
-		"-m", "Initial commit"); err != nil {
-		return fmt.Errorf("git commit: %s", stderr)
+	args := []string{
+		"commit",
+		fmt.Sprintf("--author='%s <%s>'", sig.Name, sig.Email),
+		"-m",
+		"Initial commit",
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = tmpPath
+	cmd.Env = []string{fmt.Sprintf("GIT_COMMITTER_NAME='%v'", sig.Name), fmt.Sprintf("GIT_COMMITTER_EMAIL='%v'", sig.Email)}
+	out, err := cmd.CombinedOutput()
+	//if _, stderr, err = process.ExecDir(
+	//	-1,
+	//	tmpPath,
+	//	fmt.Sprintf("initRepoCommit (git commit): %s", tmpPath),
+	//	"git",
+	//	args...,
+	//);
+	if err != nil {
+		return fmt.Errorf("git commit: %s", out)
 	}
 
-	if _, stderr, err = process.ExecDir(-1,
-		tmpPath, fmt.Sprintf("initRepoCommit (git push): %s", tmpPath),
-		"git", "push", "origin", "master"); err != nil {
+	if _, stderr, err = process.ExecDir(
+		-1,
+		tmpPath,
+		fmt.Sprintf("initRepoCommit (git push): %s", tmpPath),
+		"git",
+		"push", "origin", "master",
+	); err != nil {
 		return fmt.Errorf("git push: %s", stderr)
 	}
 	return nil
