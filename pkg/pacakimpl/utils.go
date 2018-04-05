@@ -495,7 +495,7 @@ func (p *pacakRepo) Save(committer git.Signature, message string, oldBrach, newB
 		if err := p.CheckoutNewBranch(oldBrach, newBranch); err != nil {
 			return "", fmt.Errorf("CheckoutNewBranch [old_branch: %s, new_branch: %s]: %v", oldBrach, newBranch, err)
 		}
-	} else{
+	} else if newBranch != "" && newBranch != "master" {
 		if !git.IsBranchExist(repoPath, newBranch) {
 			if git.IsBranchExist(localPath, newBranch) {
 				if err := git.DeleteBranch(localPath, newBranch, git.DeleteBranchOptions{
