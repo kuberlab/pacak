@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	git "github.com/gogits/git-module"
 	"github.com/kuberlab/pacak/pkg/errors"
 	"github.com/kuberlab/pacak/pkg/process"

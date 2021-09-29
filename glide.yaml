@@ -1,8 +1,0 @@
-package: github.com/kuberlab/pacak
-import:
-- package: github.com/emicklei/go-restful
-  version: ^2.4.0
-- package: github.com/gogits/git-module
-- package: github.com/Sirupsen/logrus
-- package: github.com/gorilla/mux
-  version: ^1.6.0

@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/emicklei/go-restful"
 	git "github.com/gogits/git-module"
 	"github.com/gorilla/mux"
